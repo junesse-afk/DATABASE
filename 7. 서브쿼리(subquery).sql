@@ -88,13 +88,14 @@ where last_name = 'Lee';
 -- 다중행 비교연산자 : in=, OR), not in(<>, AND), any(OR), all(AND)
 -- IN : (=, OR)
 -- NOT IN : (<>, AND)
--- =any (=,or) == IN    -- =all (=,and)
--- >any (>,or)     -- >all (>,and)
--- >=any (>=,or)   -- >=all (>=,and)
--- <any  (<,or)    -- <all (<,and)
--- <=any (<=,or)   -- <=all(<=,and)
--- <>any (<>, or)  -- <>all(<>,and) == NOT IN
+-- =any (=,or) == IN : (=, or)                                   -- =all (=,and) -> 단일값인 경우 의미가 있고, 다중값인 경우에는 의미가 없다
+-- >any (>,or) -> 최소값보다 크면 된다                                -- >all (>,and) -> 최대값보다 크면 된다.
+-- >=any (>=,or) -> 최소값보다 크거나 같으면된다                        -- >=all (>=,and) -> 최대값보다 크거나 같으면 된다.
+-- <any  (<,or) -> 최대값보다 작으면 된다                             -- <all (<,and) -> 최소값보다 작으면 된다.
+-- <=any (<=,or) -> 최대값보다 작거나 같으면 된다                       -- <=all(<=,and) -> 최소값보다 작거나 같으면 된다.
+-- <>any (<>, or) -> 단일값인 경우 의미가 있고, 다중값인 경우에는 의미가 없다 -- <>all(<>,and) == NOT IN : (<>, and)
 
+-- 174번, 141번의 매니저 아이디는
 SELECT EMPLOYEE_ID, LAST_NAME, MANAGER_ID, DEPARTMENT_ID
 FROM EMPLOYEES
 WHERE MANAGER_ID IN (SELECT MANAGER_ID
@@ -105,3 +106,93 @@ AND DEPARTMENT_ID IN (SELECT DEPARTMENT_ID
                     WHERE EMPLOYEE_ID IN (174, 141))
 AND EMPLOYEE_ID NOT IN(174, 141);
 
+SELECT EMPLOYEE_ID, LAST_NAME, JOB_ID, SALARY
+FROM EMPLOYEES
+WHERE SALARY < ANY (SELECT SALARY
+                    FROM EMPLOYEES
+                    WHERE JOB_ID = "IT_PROG")
+AND JOB_ID <> "IT_PROG";
+
+SELECT EMPLOYEE_ID, LAST_NAME, JOB_ID, SALARY
+FROM EMPLOYEES
+WHERE SALARY < ALL (SELECT SALARY
+                    FROM EMPLOYEES
+                    WHERE JOB_ID = "IT_PROG")
+AND JOB_ID <> "IT_PROG";
+
+-- 다중컬럼 서브쿼리
+SELECT EMPLOYEE_ID, FIRST_NAME, DEPARTMENT_ID, SALARY
+FROM EMPLOYEES
+WHERE (DEPARTMENT_ID, SALARY) IN (SELECT DEPARTMENT_ID, MIN(SALARY)
+									FROM EMPLOYEES
+									GROUP BY DEPARTMENT_ID)
+ORDER BY DEPARTMENT_ID;
+
+-- 결과가 나오지 않는 원인은?
+-- EMP 테이블에서 자기 자신이 매너지가 아닌 즉, 최하위 직원들의 정보를 출력하시오.
+-- 다중행 서브쿼리로부터 반환되는 값리스트에 NULL값이 포함된 경우
+-- (1) OR의 성격을 가지는 다중행 비교연산자 사용 -> 결과 정상 출력됨
+-- (2) AND의 성격을 가지는 다중행 비교연산 사용 -> 메인쿼리 결과도 NULL이다
+
+SELECT LAST_NAME
+FROM EMPLOYEES
+WHERE EMPLOYEE_ID NOT IN (SELECT MANAGER_ID
+							FROM EMPLOYEES);
+
+SELECT LAST_NAME
+FROM EMPLOYEES
+WHERE EMPLOYEE_ID NOT IN (SELECT MANAGER_ID
+							FROM EMPLOYEES
+							WHERE MANAGER_ID IS NOT NULL);
+                            
+-- 연습문제
+-- 1. employees 테이블에서 Abel과 동일한 부서에 소속된 사원들의 last_name과 hire_date를 출력하되 비교의 대상인 Abel은 제외하시오.
+SELECT LAST_NAME, HIRE_DATE
+FROM EMPLOYEES
+WHERE DEPARTMENT_ID IN (SELECT DEPARTMENT_ID
+						FROM EMPLOYEES
+                        WHERE LAST_NAME = "ABEL")
+and last_name <> ("abel");
+                        
+-- 2. employees 테이블에서 평균 이상의 급여를 받는 사원들의 employee_id, last_name, salary를 출력하되 급여를 기준으로 오름차순 하시오.
+SELECT EMPLOYEE_ID, LAST_NAME, SALARY
+FROM EMPLOYEES
+WHERE SALARY >= (SELECT AVG(SALARY)
+					FROM EMPLOYEES)
+order by salary;
+
+--  3. employees 테이블에서 last_name에 ‘u’가 포함된 사원과 같은 부서에 근무하는 모든 사원의 employee_id, last_name을 출력하시오.
+SELECT EMPLOYEE_ID, LAST_NAME
+FROM EMPLOYEES
+where DEPARTMENT_ID IN (SELECT DEPARTMENT_ID
+						FROM EMPLOYEES
+                        WHERE LAST_NAME LIKE "%u%");
+
+-- 4. employees 테이블과 departments 테이블을 사용하여 구문을 작성하시오. location_id가 1700인 부서에 소속된 사원들의 employee_id, last_name, department_id, job_id를 출력하시오
+select employee_id, last_name, department_id, job_id
+from employees
+where department_id in (select department_id
+						from departments
+                        where location_id = 1700);
+                        
+-- 5. employees 테이블에서 평균 이상의 급여를 받으면서 last_name에 ‘u’가 포함된 사원과 동일한 부서에 소속된 사원들의 employee_id, last_name, salary를 출력하시오
+select employee_id, last_name, salary
+from employees
+where DEPARTMENT_ID IN (SELECT DEPARTMENT_ID
+						FROM EMPLOYEES
+                        WHERE LAST_NAME LIKE "%u%")
+and SALARY >= (SELECT AVG(SALARY)
+				FROM EMPLOYEES);
+                
+--  6. employees 테이블에서 본인이 매니저의 역할을 하는 사원들의 employee_id, last_name을 출력하시오.
+select employee_id, last_name
+from employees
+where employee_id in (select manager_id
+					from employees);
+                    
+-- 7. employees 테이블과 departments 테이블을 사용하여 구문을 작성하시오. 직원이 소속되어 있지 않은 빈 부서의 department_id, department_name을 출력하시오.
+select department_id, department_name
+from departments
+where department_id not in (select department_id
+							from employees
+							where department_id is not null);
